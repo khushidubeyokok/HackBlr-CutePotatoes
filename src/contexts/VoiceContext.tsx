@@ -1,4 +1,5 @@
 import React, { createContext, useContext, useState, useEffect, useRef } from 'react';
+import Vapi from '@vapi-ai/web';
 
 interface VoiceContextType {
   isListening: boolean;
@@ -14,6 +15,9 @@ interface VoiceContextType {
 
 const VoiceContext = createContext<VoiceContextType | undefined>(undefined);
 
+const VAPI_PUBLIC_KEY = process.env.REACT_APP_VAPI_PUBLIC_KEY || '';
+const VAPI_ASSISTANT_ID = process.env.REACT_APP_VAPI_ASSISTANT_ID || '';
+
 export const useVoice = () => {
   const context = useContext(VoiceContext);
   if (!context) {
@@ -26,67 +30,62 @@ export const VoiceProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   const [isListening, setIsListening] = useState(false);
   const [isSpeaking, setIsSpeaking] = useState(false);
   const [transcript, setTranscript] = useState('');
-  const [isVoiceSupported, setIsVoiceSupported] = useState(false);
-  
-  const recognitionRef = useRef<any>(null);
-  const synthesisRef = useRef<SpeechSynthesisUtterance | null>(null);
+  const [isVoiceSupported] = useState(true); // VAPI is supported in modern browsers
+
+  const vapiRef = useRef<Vapi | null>(null);
 
   useEffect(() => {
-    // Check for voice support
-    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-    const SpeechSynthesis = window.speechSynthesis;
-    
-    if (SpeechRecognition && SpeechSynthesis) {
-      setIsVoiceSupported(true);
-      
-      // Initialize speech recognition
-      recognitionRef.current = new SpeechRecognition();
-      recognitionRef.current.continuous = true;
-      recognitionRef.current.interimResults = true;
-      recognitionRef.current.lang = 'en-US';
-      
-      recognitionRef.current.onstart = () => {
-        setIsListening(true);
-      };
-      
-      recognitionRef.current.onend = () => {
-        setIsListening(false);
-      };
-      
-      recognitionRef.current.onresult = (event: any) => {
-        let finalTranscript = '';
-        
-        for (let i = event.resultIndex; i < event.results.length; i++) {
-          const result = event.results[i];
-          const spokenText = result[0].transcript;
-          if (result.isFinal) {
-            finalTranscript += spokenText;
-          }
-        }
-        
-        // Only emit transcript updates on final results to avoid partial prompts
-        if (finalTranscript && finalTranscript.trim().length > 0) {
-          setTranscript(finalTranscript.trim());
-        }
-      };
-      
-      recognitionRef.current.onerror = (event: any) => {
-        console.error('Speech recognition error:', event.error);
-        setIsListening(false);
-      };
-    }
+    // Initialize VAPI client
+    const vapi = new Vapi(VAPI_PUBLIC_KEY);
+    vapiRef.current = vapi;
+
+    // Event Listeners
+    const onSpeechStart = () => setIsSpeaking(true);
+    const onSpeechEnd = () => setIsSpeaking(false);
+    const onCallStart = () => setIsListening(true);
+    const onCallEnd = () => setIsListening(false);
+
+    const onMessage = (message: any) => {
+      if (message.type === 'transcript' && message.transcriptType === 'final' && message.role === 'user') {
+        setTranscript(message.transcript);
+      }
+    };
+
+    const onError = (error: any) => {
+      console.error('VAPI Error:', error);
+      setIsListening(false);
+      setIsSpeaking(false);
+    };
+
+    vapi.on('speech-start', onSpeechStart);
+    vapi.on('speech-end', onSpeechEnd);
+    vapi.on('call-start', onCallStart);
+    vapi.on('call-end', onCallEnd);
+    vapi.on('message', onMessage);
+    vapi.on('error', onError);
+
+    // Cleanup
+    return () => {
+      vapi.stop();
+      vapi.off('speech-start', onSpeechStart);
+      vapi.off('speech-end', onSpeechEnd);
+      vapi.off('call-start', onCallStart);
+      vapi.off('call-end', onCallEnd);
+      vapi.off('message', onMessage);
+      vapi.off('error', onError);
+    };
   }, []);
 
   const startListening = () => {
-    if (recognitionRef.current && !isListening) {
+    if (vapiRef.current && !isListening) {
       setTranscript('');
-      recognitionRef.current.start();
+      vapiRef.current.start(VAPI_ASSISTANT_ID);
     }
   };
 
   const stopListening = () => {
-    if (recognitionRef.current && isListening) {
-      recognitionRef.current.stop();
+    if (vapiRef.current && isListening) {
+      vapiRef.current.stop();
     }
   };
 
@@ -95,36 +94,22 @@ export const VoiceProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   };
 
   const speak = (text: string) => {
-    if (window.speechSynthesis) {
-      // Stop any ongoing speech
-      window.speechSynthesis.cancel();
-      
-      const utterance = new SpeechSynthesisUtterance(text);
-      utterance.rate = 0.9;
-      utterance.pitch = 1;
-      utterance.volume = 1;
-      
-      utterance.onstart = () => {
-        setIsSpeaking(true);
-      };
-      
-      utterance.onend = () => {
+    if (vapiRef.current && isListening) {
+      setIsSpeaking(true);
+      try {
+        vapiRef.current.say(text, false);
+      } catch (err) {
+        console.warn('VAPI speak failed:', err);
         setIsSpeaking(false);
-      };
-      
-      utterance.onerror = (event) => {
-        console.error('Speech synthesis error:', event.error);
-        setIsSpeaking(false);
-      };
-      
-      synthesisRef.current = utterance;
-      window.speechSynthesis.speak(utterance);
+      }
+    } else {
+      console.warn('VoiceContext: Cannot speak, call not active or starting.');
     }
   };
 
   const stopSpeaking = () => {
-    if (window.speechSynthesis) {
-      window.speechSynthesis.cancel();
+    if (vapiRef.current) {
+      vapiRef.current.stop();
       setIsSpeaking(false);
     }
   };
@@ -148,10 +133,3 @@ export const VoiceProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   );
 };
 
-// Extend Window interface for TypeScript
-declare global {
-  interface Window {
-    SpeechRecognition: any;
-    webkitSpeechRecognition: any;
-  }
-}

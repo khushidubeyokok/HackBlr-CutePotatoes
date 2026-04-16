@@ -63,6 +63,19 @@ export const UserProvider: React.FC<{ children: React.ReactNode }> = ({ children
       } catch (error) {
         console.error('Error loading user data:', error);
       }
+    } else {
+      // Auto-onboard for demo purposes
+      const demoUser: User = {
+        id: 'demo-user',
+        name: 'Google Student',
+        class: '7',
+        board: 'CBSE',
+        subjects: ['Science', 'Mathematics', 'English'],
+        progress: {}
+      };
+      setUser(demoUser);
+      setIsOnboarded(true);
+      localStorage.setItem('drishti-vani-user', JSON.stringify(demoUser));
     }
   }, []);
 
@@ -70,7 +83,7 @@ export const UserProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const updatedUser = user ? { ...user, ...userData } : userData as User;
     setUser(updatedUser);
     localStorage.setItem('drishti-vani-user', JSON.stringify(updatedUser));
-    
+
     if (!isOnboarded && userData.name && userData.class) {
       setIsOnboarded(true);
     }
@@ -83,7 +96,7 @@ export const UserProvider: React.FC<{ children: React.ReactNode }> = ({ children
     if (!updatedUser.progress[subject]) {
       updatedUser.progress[subject] = {};
     }
-    
+
     updatedUser.progress[subject][chapter] = {
       ...updatedUser.progress[subject][chapter],
       progress,

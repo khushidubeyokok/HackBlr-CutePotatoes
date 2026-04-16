@@ -1,32 +1,34 @@
-# See https://help.github.com/articles/ignoring-files/ for more about ignoring files.
+# Dependencies
+node_modules/
+dist/
+build/
+.next/
 
-# dependencies
-/node_modules
-/.pnp
-.pnp.js
-
-# testing
-/coverage
-
-# production
-/build
-
-# misc
-.DS_Store
+# Environment
+.env
 .env.local
 .env.development.local
 .env.test.local
 .env.production.local
 
+# Logs
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
+.pnpm-debug.log*
 
-# IDE
+# System
+.DS_Store
+Thumbs.db
+
+# IDEs
 .vscode/
 .idea/
 *.swp
 *.swo
 
-# OS
-Thumbs.db
+# Project specific
+public/ncert_science_sample_page.png
+server/node_modules/
+server/package-lock.json
+package-lock.json

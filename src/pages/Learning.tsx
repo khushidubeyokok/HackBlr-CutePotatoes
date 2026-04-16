@@ -2,8 +2,9 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useVoice } from '../contexts/VoiceContext';
 import { useUser } from '../contexts/UserContext';
-import { 
-  Mic, MicOff, Volume2, VolumeX, ArrowLeft, ArrowRight, 
+import { useRagChat } from '../hooks/useRagChat';
+import {
+  Mic, MicOff, Volume2, VolumeX, ArrowLeft, ArrowRight,
   BookOpen, MessageCircle, CheckCircle, Play, Pause,
   Eye, Microscope, Calculator, Globe, Book, Languages
 } from 'lucide-react';
@@ -27,7 +28,7 @@ const Learning: React.FC = () => {
   const navigate = useNavigate();
   const { isListening, isSpeaking, transcript, startListening, stopListening, speak, stopSpeaking } = useVoice();
   const { user, updateProgress, setLastSession, logout } = useUser();
-  
+
   const [currentSection, setCurrentSection] = useState(0);
   const [isLearning, setIsLearning] = useState(false);
   const [conversation, setConversation] = useState<Array<{
@@ -36,7 +37,7 @@ const Learning: React.FC = () => {
     message: string;
     timestamp: Date;
   }>>([]);
-  const [isProcessing, setIsProcessing] = useState(false);
+  const { ask, isLoading } = useRagChat(subject || '', chapter || '');
   const [textbookContent, setTextbookContent] = useState<TextbookContent | null>(null);
   const [showAssessment, setShowAssessment] = useState(false);
   const [assessmentQuestions, setAssessmentQuestions] = useState<Array<{
@@ -49,7 +50,7 @@ const Learning: React.FC = () => {
   const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
   const [assessmentCompleted, setAssessmentCompleted] = useState(false);
   const [assessmentScore, setAssessmentScore] = useState(0);
-  
+
   const chatEndRef = useRef<HTMLDivElement>(null);
 
   const subjectIcons = {
@@ -60,223 +61,30 @@ const Learning: React.FC = () => {
     'Hindi': Languages,
   };
 
-  // Mock textbook content - in real app, this would come from curriculum API
-  const mockContent: { [key: string]: { [key: string]: TextbookContent } } = {
-    'Science': {
-      'Chapter-1': {
-        title: 'MATTER IN OUR SURROUNDINGS',
-        pageNumber: 1,
-        imageUrl: 'https://images.unsplash.com/photo-1635070041078-e363dbe005cb?w=400&h=300&fit=crop&crop=center',
-        sections: [
-          {
-            id: 'intro',
-            title: 'Introduction to Matter',
-            content: 'Everything around us is made up of matter. Matter is anything that has mass and occupies space. The three states of matter are solid, liquid, and gas.',
-            type: 'text',
-            completed: false,
-          },
-          {
-            id: 'states',
-            title: 'States of Matter',
-            content: 'Matter exists in three states: solid, liquid, and gas. Solids have fixed shape and volume, liquids have fixed volume but no fixed shape, and gases have neither fixed shape nor volume.',
-            type: 'text',
-            completed: false,
-          },
-          {
-            id: 'particles',
-            title: 'Particle Nature of Matter',
-            content: 'All matter is made up of tiny particles called atoms and molecules. These particles are constantly moving and have spaces between them.',
-            type: 'text',
-            completed: false,
-          },
-        ],
-      },
-      'Chapter-4': {
-        title: '10.2.3 Photosynthesis: in a nutshell',
-        pageNumber: 146,
-        imageUrl: '/demo-photosynthesis.png',
-        sections: [
-          {
-            id: 'nutshell',
-            title: 'Photosynthesis in a nutshell',
-            content: 'We know that water, sunlight, carbon dioxide from the air, and chlorophyll are necessary to carry out the process of photosynthesis that produces carbohydrates. During photosynthesis, food is actually produced in the form of glucose, a simple carbohydrate. This glucose not only serves as an instant source of energy but also later gets converted into starch for storage.',
-            type: 'text',
-            completed: false,
-          },
-          {
-            id: 'equation',
-            title: 'Word equation of photosynthesis',
-            content: 'Sunlight and chlorophyll help plants combine carbon dioxide and water to form glucose and oxygen.',
-            type: 'diagram',
-            description: 'Carbon dioxide + Water —[Sunlight, Chlorophyll]→ Glucose + Oxygen',
-            completed: false,
-          },
-          {
-            id: 'know-a-scientist',
-            title: 'Know a Scientist: Rustom Hormusji Dastur (1896–1961)',
-            content: 'Many scientists contributed to our understanding of photosynthesis. In India, Rustom Hormusji Dastur studied photosynthesis and led the Botany Department at the Royal Institute of Science, Bombay. He studied the effects of the amount of water and temperature on photosynthesis and examined the importance of water, temperature, and the colour of light in the process of photosynthesis.',
-            type: 'text',
-            completed: false,
-          },
-          {
-            id: 'gas-exchange',
-            title: '10.2.4 How do leaves exchange gases during photosynthesis?',
-            content: 'Photosynthesis requires carbon dioxide, and oxygen is released in the process. Which part of the plant helps in the exchange of carbon dioxide and oxygen? Let us conduct an activity to understand where the exchange of gases takes place.',
-            type: 'text',
-            completed: false,
-          },
-        ],
-      },
-    },
-    'Mathematics': {
-      'Chapter-1': {
-        title: 'INTEGERS',
-        pageNumber: 1,
-        imageUrl: 'https://images.unsplash.com/photo-1635070041078-e363dbe005cb?w=400&h=300&fit=crop&crop=center',
-        sections: [
-          {
-            id: 'intro',
-            title: 'Introduction to Integers',
-            content: 'Integers are whole numbers that can be positive, negative, or zero. They include numbers like -3, -2, -1, 0, 1, 2, 3, and so on.',
-            type: 'text',
-            completed: false,
-          },
-          {
-            id: 'number-line',
-            title: 'Number Line',
-            content: 'Integers can be represented on a number line. Positive integers are to the right of zero, and negative integers are to the left of zero.',
-            type: 'text',
-            completed: false,
-          },
-          {
-            id: 'operations',
-            title: 'Operations with Integers',
-            content: 'We can perform addition, subtraction, multiplication, and division with integers. The rules for these operations help us work with positive and negative numbers.',
-            type: 'text',
-            completed: false,
-          },
-        ],
-      },
-    },
-    'Social Studies': {
-      'Chapter-1': {
-        title: 'OUR ENVIRONMENT',
-        pageNumber: 1,
-        imageUrl: 'https://images.unsplash.com/photo-1441974231531-c6227db76b6e?w=400&h=300&fit=crop&crop=center',
-        sections: [
-          {
-            id: 'intro',
-            title: 'What is Environment?',
-            content: 'Environment is everything that surrounds us. It includes both natural and human-made components that affect our daily lives.',
-            type: 'text',
-            completed: false,
-          },
-          {
-            id: 'components',
-            title: 'Components of Environment',
-            content: 'The environment has three main components: natural environment (air, water, soil), human environment (buildings, roads), and human-made environment (technology, culture).',
-            type: 'text',
-            completed: false,
-          },
-        ],
-      },
-    },
-    'English': {
-      'Chapter-1': {
-        title: 'THREE QUESTIONS',
-        pageNumber: 1,
-        imageUrl: 'https://images.unsplash.com/photo-1481627834876-b7833e8f5570?w=400&h=300&fit=crop&crop=center',
-        sections: [
-          {
-            id: 'intro',
-            title: 'Introduction to the Story',
-            content: 'This is a story about a king who seeks answers to three important questions that will help him rule his kingdom wisely.',
-            type: 'text',
-            completed: false,
-          },
-          {
-            id: 'questions',
-            title: 'The Three Questions',
-            content: 'The king asks: What is the right time to do something? Who are the right people to listen to? What is the most important thing to do?',
-            type: 'text',
-            completed: false,
-          },
-        ],
-      },
-    },
-    'Hindi': {
-      'Chapter-1': {
-        title: 'हम पंछी उन्मुक्त गगन के',
-        pageNumber: 1,
-        imageUrl: 'https://images.unsplash.com/photo-1481627834876-b7833e8f5570?w=400&h=300&fit=crop&crop=center',
-        sections: [
-          {
-            id: 'intro',
-            title: 'कविता का परिचय',
-            content: 'यह कविता स्वतंत्रता और आज़ादी के बारे में है। कवि पक्षियों के माध्यम से स्वतंत्रता की भावना को व्यक्त करते हैं।',
-            type: 'text',
-            completed: false,
-          },
-          {
-            id: 'meaning',
-            title: 'कविता का अर्थ',
-            content: 'कविता में पक्षी आकाश में स्वतंत्र रूप से उड़ते हैं और यह स्वतंत्रता की भावना का प्रतीक है।',
-            type: 'text',
-            completed: false,
-          },
-        ],
-      },
-    },
-  };
+  // Replaced mockContent with API call below
 
   useEffect(() => {
     if (subject && chapter) {
-      // Clear any lingering dashboard transcript before starting session
-      // (handled in Dashboard with clearTranscript, this is just defensive)
       setLastSession(subject, chapter);
-      const content = mockContent[subject]?.[chapter];
-      if (content) {
-        setTextbookContent(content);
-        // Start with welcome message (guard against duplicates)
-        const welcomeMessage = `Welcome to ${subject}, ${chapter}! Let's start learning about ${content.title}. I'll guide you through each section.`;
-        if ((window as any).__dv_last_welcome !== welcomeMessage) {
-          (window as any).__dv_last_welcome = welcomeMessage;
-          addToConversation('ai', welcomeMessage);
-          speak(welcomeMessage);
-        }
-      } else {
-        // Create default content if not found
-        const defaultContent: TextbookContent = {
-          title: `${subject} - ${chapter}`,
-          pageNumber: 1,
-          imageUrl: 'https://images.unsplash.com/photo-1481627834876-b7833e8f5570?w=400&h=300&fit=crop&crop=center',
-          sections: [
-            {
-              id: 'intro',
-              title: 'Introduction',
-              content: `Welcome to ${subject}, ${chapter}! This chapter covers important concepts that will help you understand the subject better. Let's start learning together.`,
-              type: 'text',
-              completed: false,
-            },
-            {
-              id: 'content',
-              title: 'Chapter Content',
-              content: 'This chapter contains valuable information about the topic. I will guide you through each section and explain the concepts in detail.',
-              type: 'text',
-              completed: false,
-            },
-          ],
-        };
-        setTextbookContent(defaultContent);
-        const welcomeMessage = `Welcome to ${subject}, ${chapter}! I'll help you learn this topic step by step.`;
-        if ((window as any).__dv_last_welcome !== welcomeMessage) {
-          (window as any).__dv_last_welcome = welcomeMessage;
-          addToConversation('ai', welcomeMessage);
-          speak(welcomeMessage);
-        }
-      }
+
+      // Fetch textbook structure
+      fetch(`http://localhost:3001/api/content?subject=${subject}&chapter=${chapter}`)
+        .then(res => res.json())
+        .then(data => setTextbookContent(data))
+        .catch(err => console.error('Failed to fetch textbook content:', err));
+
+      // Fetch initial summary/overview from RAG
+      ask("Summarize the key sections of this chapter for a student")
+        .then(answer => {
+          const welcomeMessage = `Welcome to ${subject}, ${chapter}! ${answer}`;
+          if ((window as any).__dv_last_welcome !== welcomeMessage) {
+            (window as any).__dv_last_welcome = welcomeMessage;
+            addToConversation('ai', welcomeMessage);
+            speak(welcomeMessage);
+          }
+        });
     }
-  }, [subject, chapter]); // Removed setLastSession and speak from dependencies
+  }, [subject, chapter]);
 
   useEffect(() => {
     chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -303,7 +111,7 @@ const Learning: React.FC = () => {
     debounceTimerRef.current = window.setTimeout(() => {
       lastProcessedTranscriptRef.current = cleaned;
       addToConversation('user', cleaned);
-      
+
       // Route to assessment if in assessment mode
       if (showAssessment && !assessmentCompleted) {
         processAssessmentAnswer(cleaned);
@@ -324,20 +132,14 @@ const Learning: React.FC = () => {
   };
 
   const processUserInput = async (input: string) => {
-    setIsProcessing(true);
-    
-    // Simulate AI processing
-    setTimeout(() => {
-      const response = generateAIResponse(input);
-      addToConversation('ai', response);
-      speak(response);
-      setIsProcessing(false);
-    }, 1000);
+    const response = await generateAIResponse(input);
+    addToConversation('ai', response);
+    speak(response);
   };
 
-  const generateAIResponse = (input: string): string => {
+  const generateAIResponse = async (input: string): Promise<string> => {
     const lowerInput = input.toLowerCase();
-    
+
     if (lowerInput.includes('next') || lowerInput.includes('continue')) {
       return handleNextSection();
     } else if (lowerInput.includes('previous') || lowerInput.includes('back')) {
@@ -351,13 +153,14 @@ const Learning: React.FC = () => {
     } else if (lowerInput.includes('complete') || lowerInput.includes('done')) {
       return markSectionComplete();
     } else {
-      return "I understand. Let me know if you'd like me to explain something, move to the next section, or if you have any questions about this topic.";
+      // Recognized voice inputs go to RAG backend
+      return await ask(input);
     }
   };
 
   const handleNextSection = (): string => {
     if (!textbookContent) return "No content available.";
-    
+
     if (currentSection < textbookContent.sections.length - 1) {
       setCurrentSection(prev => prev + 1);
       const nextSection = textbookContent.sections[currentSection + 1];
@@ -399,24 +202,24 @@ const Learning: React.FC = () => {
 
   const markSectionComplete = (): string => {
     if (textbookContent) {
-      const updatedSections = textbookContent.sections.map((section, index) => 
+      const updatedSections = textbookContent.sections.map((section, index) =>
         index === currentSection ? { ...section, completed: true } : section
       );
       setTextbookContent({ ...textbookContent, sections: updatedSections });
-      
+
       // Update progress
       const progress = Math.round(((currentSection + 1) / textbookContent.sections.length) * 100);
       if (subject && chapter) {
         updateProgress(subject, chapter, progress);
       }
-      
+
       // Check if all sections are completed to trigger assessment
       const allCompleted = updatedSections.every(section => section.completed);
       if (allCompleted && !showAssessment) {
         startAssessment();
         return "Excellent! You've completed all sections. Let's test your understanding with a quick assessment.";
       }
-      
+
       return "Great! I've marked this section as completed. You're making excellent progress!";
     }
     return "Unable to mark section as complete.";
@@ -430,7 +233,7 @@ const Learning: React.FC = () => {
         correctAnswer: 'green plants'
       },
       {
-        id: 'q2', 
+        id: 'q2',
         question: 'Where is photosynthesis done?',
         correctAnswer: 'leaves'
       },
@@ -445,13 +248,13 @@ const Learning: React.FC = () => {
         correctAnswer: 'sunlight'
       }
     ];
-    
+
     setAssessmentQuestions(questions);
     setCurrentQuestionIndex(0);
     setShowAssessment(true);
     setAssessmentCompleted(false);
     setAssessmentScore(0);
-    
+
     const firstQuestion = questions[0];
     const message = `Assessment time! Question 1: ${firstQuestion.question}`;
     addToConversation('ai', message);
@@ -460,15 +263,15 @@ const Learning: React.FC = () => {
 
   const processAssessmentAnswer = (answer: string) => {
     if (!showAssessment || assessmentCompleted) return;
-    
+
     const currentQuestion = assessmentQuestions[currentQuestionIndex];
     const normalizedAnswer = answer.toLowerCase().trim();
     const normalizedCorrect = currentQuestion.correctAnswer.toLowerCase();
-    
+
     // Check if answer contains the correct keyword
-    const isCorrect = normalizedAnswer.includes(normalizedCorrect) || 
-                     normalizedCorrect.includes(normalizedAnswer);
-    
+    const isCorrect = normalizedAnswer.includes(normalizedCorrect) ||
+      normalizedCorrect.includes(normalizedAnswer);
+
     const updatedQuestions = [...assessmentQuestions];
     updatedQuestions[currentQuestionIndex] = {
       ...currentQuestion,
@@ -476,15 +279,15 @@ const Learning: React.FC = () => {
       isCorrect
     };
     setAssessmentQuestions(updatedQuestions);
-    
+
     // Provide feedback
-    const feedback = isCorrect 
+    const feedback = isCorrect
       ? `Correct! ${currentQuestion.correctAnswer} is the right answer.`
       : `Not quite right. The correct answer is ${currentQuestion.correctAnswer}.`;
-    
+
     addToConversation('ai', feedback);
     speak(feedback);
-    
+
     // Move to next question or complete assessment
     setTimeout(() => {
       if (currentQuestionIndex < assessmentQuestions.length - 1) {
@@ -505,11 +308,11 @@ const Learning: React.FC = () => {
     const score = Math.round((correctAnswers / assessmentQuestions.length) * 100);
     setAssessmentScore(score);
     setAssessmentCompleted(true);
-    
+
     const completionMessage = `Assessment completed! You scored ${score}% (${correctAnswers} out of ${assessmentQuestions.length} correct). ${score >= 75 ? 'Excellent work!' : 'Good effort! Keep practicing.'}`;
     addToConversation('ai', completionMessage);
     speak(completionMessage);
-    
+
     // Update progress with assessment score
     if (subject && chapter) {
       updateProgress(subject, chapter, 100, true, score);
@@ -568,7 +371,7 @@ const Learning: React.FC = () => {
                 <ArrowLeft className="w-5 h-5" />
                 <span>Back to Dashboard</span>
               </button>
-              
+
               <div className="flex items-center gap-3">
                 <div className="w-8 h-8 bg-primary-100 rounded-lg flex items-center justify-center">
                   <IconComponent className="w-5 h-5 text-primary-600" />
@@ -581,26 +384,25 @@ const Learning: React.FC = () => {
                 </div>
               </div>
             </div>
-            
+
             <div className="flex items-center gap-4">
               <div className="flex items-center gap-2">
                 <span className="text-sm text-gray-600">Progress</span>
                 <div className="w-32 progress-bar">
-                  <div 
+                  <div
                     className="progress-fill"
                     style={{ width: `${progress}%` }}
                   />
                 </div>
                 <span className="text-sm font-medium text-gray-900">{progress}%</span>
               </div>
-              
+
               <button
                 onClick={handleVoiceToggle}
-                className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-colors ${
-                  isListening 
-                    ? 'bg-red-500 text-white' 
+                className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-colors ${isListening
+                    ? 'bg-red-500 text-white'
                     : 'bg-primary-500 text-white hover:bg-primary-600'
-                }`}
+                  }`}
               >
                 {isListening ? <MicOff className="w-5 h-5" /> : <Mic className="w-5 h-5" />}
                 {isListening ? 'Stop' : 'Voice'}
@@ -651,7 +453,7 @@ const Learning: React.FC = () => {
               <h2 className="text-lg font-semibold">AI Tutor Conversation</h2>
               <p className="text-primary-100">Voice-based learning assistant</p>
             </div>
-            
+
             <div className="flex-1 p-6 overflow-y-auto bg-gray-50">
               <div className="space-y-4">
                 {conversation.map((message) => (
@@ -660,23 +462,21 @@ const Learning: React.FC = () => {
                     className={`flex ${message.type === 'user' ? 'justify-end' : 'justify-start'}`}
                   >
                     <div
-                      className={`max-w-xs lg:max-w-md px-4 py-3 rounded-lg ${
-                        message.type === 'user'
+                      className={`max-w-xs lg:max-w-md px-4 py-3 rounded-lg ${message.type === 'user'
                           ? 'bg-primary-500 text-white'
                           : 'bg-white text-gray-900 border border-gray-200'
-                      }`}
+                        }`}
                     >
                       <p className="text-sm">{message.message}</p>
-                      <p className={`text-xs mt-1 ${
-                        message.type === 'user' ? 'text-primary-100' : 'text-gray-500'
-                      }`}>
+                      <p className={`text-xs mt-1 ${message.type === 'user' ? 'text-primary-100' : 'text-gray-500'
+                        }`}>
                         {message.timestamp.toLocaleTimeString()}
                       </p>
                     </div>
                   </div>
                 ))}
-                
-                {isProcessing && (
+
+                {isLoading && (
                   <div className="flex justify-start">
                     <div className="bg-white text-gray-900 border border-gray-200 px-4 py-3 rounded-lg">
                       <div className="flex items-center gap-2">
@@ -690,25 +490,24 @@ const Learning: React.FC = () => {
                     </div>
                   </div>
                 )}
-                
+
                 <div ref={chatEndRef} />
               </div>
             </div>
-            
+
             <div className="p-4 border-t border-gray-200 bg-white rounded-b-xl">
               <div className="flex items-center gap-3">
                 <button
                   onClick={handleVoiceToggle}
-                  className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-colors ${
-                    isListening 
-                      ? 'bg-red-500 text-white' 
+                  className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-colors ${isListening
+                      ? 'bg-red-500 text-white'
                       : 'bg-primary-500 text-white hover:bg-primary-600'
-                  }`}
+                    }`}
                 >
                   {isListening ? <MicOff className="w-5 h-5" /> : <Mic className="w-5 h-5" />}
                   {isListening ? 'Stop Listening' : 'Start Voice Chat'}
                 </button>
-                
+
                 {isSpeaking && (
                   <div className="voice-indicator">
                     <Volume2 className="w-5 h-5 speaking-animation" />
@@ -716,7 +515,7 @@ const Learning: React.FC = () => {
                   </div>
                 )}
               </div>
-              
+
               <div className="mt-3 text-xs text-gray-500">
                 <p>💡 Try saying: "explain this", "next section", "repeat", or "I have a question"</p>
                 <p className="mt-1">🎤 Or press <kbd className="bg-gray-100 px-1 py-0.5 rounded">Space</kbd> to toggle voice anywhere on the page</p>

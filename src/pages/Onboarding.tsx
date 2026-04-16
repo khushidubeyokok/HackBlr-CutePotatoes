@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useVoice } from '../contexts/VoiceContext';
 import { useUser } from '../contexts/UserContext';
@@ -8,7 +8,7 @@ const Onboarding: React.FC = () => {
   const navigate = useNavigate();
   const { isListening, isSpeaking, transcript, startListening, stopListening, speak, isVoiceSupported } = useVoice();
   const { updateUser, isOnboarded } = useUser();
-  
+
   const [currentStep, setCurrentStep] = useState(0);
   const [userData, setUserData] = useState({
     name: '',
@@ -21,6 +21,7 @@ const Onboarding: React.FC = () => {
     accent: 'neutral',
     sampleText: '',
   });
+  const lastProcessedTranscriptRef = useRef<string>('');
 
   const steps = [
     {
@@ -89,12 +90,12 @@ const Onboarding: React.FC = () => {
     if (!transcript) return;
 
     const text = transcript.toLowerCase().trim();
-    
+
     switch (currentStep) {
       case 1: // Voice profile
         setVoiceProfile(prev => ({ ...prev, sampleText: transcript }));
         break;
-        
+
       case 2: // Personal info
         if (text.includes('name is') || text.includes('i am') || text.includes('my name')) {
           // Capture words after the phrase, stopping at punctuation or end
@@ -109,23 +110,23 @@ const Onboarding: React.FC = () => {
           }
         }
         break;
-        
+
       case 3: // Academic details
         // Extract class
         const classMatch = text.match(/class\s+(\d+)/i);
         if (classMatch) {
           setUserData(prev => ({ ...prev, class: classMatch[1] }));
         }
-        
+
         // Extract board
         const boardMatch = boards.find(board => text.includes(board.toLowerCase()));
         if (boardMatch) {
           setUserData(prev => ({ ...prev, board: boardMatch as any }));
         }
         break;
-        
+
       case 4: // Subject selection
-        const selectedSubjects = availableSubjects.filter(subject => 
+        const selectedSubjects = availableSubjects.filter(subject =>
           text.includes(subject.toLowerCase())
         );
         if (selectedSubjects.length > 0) {
@@ -139,10 +140,14 @@ const Onboarding: React.FC = () => {
   };
 
   useEffect(() => {
-    if (transcript) {
-      processTranscript();
+    if (transcript && !isSpeaking) {
+      const cleaned = transcript.toLowerCase().trim();
+      if (cleaned && cleaned !== lastProcessedTranscriptRef.current) {
+        lastProcessedTranscriptRef.current = cleaned;
+        processTranscript();
+      }
     }
-  }, [transcript]);
+  }, [transcript, isSpeaking]);
 
   const nextStep = () => {
     if (currentStep < steps.length - 1) {
@@ -186,7 +191,7 @@ const Onboarding: React.FC = () => {
           <p className="text-gray-600 mb-4">
             Your browser doesn't support voice recognition. Please use Chrome or Edge for the best experience.
           </p>
-          <button 
+          <button
             onClick={() => navigate('/dashboard')}
             className="btn-primary"
           >
@@ -207,7 +212,7 @@ const Onboarding: React.FC = () => {
             <span>{Math.round(((currentStep + 1) / steps.length) * 100)}% Complete</span>
           </div>
           <div className="progress-bar">
-            <div 
+            <div
               className="progress-fill"
               style={{ width: `${((currentStep + 1) / steps.length) * 100}%` }}
             />
@@ -235,7 +240,7 @@ const Onboarding: React.FC = () => {
               <div className="text-center">
                 <div className="text-6xl mb-4">👁️</div>
                 <p className="text-lg text-gray-700 mb-6">
-                  Drishti-Vani is designed to make learning accessible through voice interaction. 
+                  Drishti-Vani is designed to make learning accessible through voice interaction.
                   I'll guide you through a quick setup process.
                 </p>
                 <div className="bg-primary-50 rounded-lg p-4 mb-6">
@@ -257,9 +262,8 @@ const Onboarding: React.FC = () => {
                   </p>
                   <button
                     onClick={handleVoiceInput}
-                    className={`btn-primary flex items-center gap-2 mx-auto ${
-                      isListening ? 'bg-red-500 hover:bg-red-600' : ''
-                    }`}
+                    className={`btn-primary flex items-center gap-2 mx-auto ${isListening ? 'bg-red-500 hover:bg-red-600' : ''
+                      }`}
                   >
                     {isListening ? <MicOff className="w-5 h-5" /> : <Mic className="w-5 h-5" />}
                     {isListening ? 'Stop Recording' : 'Start Recording'}
@@ -283,9 +287,8 @@ const Onboarding: React.FC = () => {
                   <div className="flex items-center gap-4 mb-4">
                     <button
                       onClick={handleVoiceInput}
-                      className={`btn-primary flex items-center gap-2 ${
-                        isListening ? 'bg-red-500 hover:bg-red-600' : ''
-                      }`}
+                      className={`btn-primary flex items-center gap-2 ${isListening ? 'bg-red-500 hover:bg-red-600' : ''
+                        }`}
                     >
                       {isListening ? <MicOff className="w-5 h-5" /> : <Mic className="w-5 h-5" />}
                       {isListening ? 'Listening...' : 'Speak'}
@@ -316,9 +319,8 @@ const Onboarding: React.FC = () => {
                   <div className="flex items-center gap-4 mb-4">
                     <button
                       onClick={handleVoiceInput}
-                      className={`btn-primary flex items-center gap-2 ${
-                        isListening ? 'bg-red-500 hover:bg-red-600' : ''
-                      }`}
+                      className={`btn-primary flex items-center gap-2 ${isListening ? 'bg-red-500 hover:bg-red-600' : ''
+                        }`}
                     >
                       {isListening ? <MicOff className="w-5 h-5" /> : <Mic className="w-5 h-5" />}
                       {isListening ? 'Listening...' : 'Speak'}
@@ -351,9 +353,8 @@ const Onboarding: React.FC = () => {
                   <div className="flex items-center gap-4 mb-4">
                     <button
                       onClick={handleVoiceInput}
-                      className={`btn-primary flex items-center gap-2 ${
-                        isListening ? 'bg-red-500 hover:bg-red-600' : ''
-                      }`}
+                      className={`btn-primary flex items-center gap-2 ${isListening ? 'bg-red-500 hover:bg-red-600' : ''
+                        }`}
                     >
                       {isListening ? <MicOff className="w-5 h-5" /> : <Mic className="w-5 h-5" />}
                       {isListening ? 'Listening...' : 'Speak'}

@@ -24,17 +24,16 @@ const ButtonlessNavigation: React.FC<{ children: React.ReactNode }> = ({ childre
           stopListening();
         } else {
           startListening();
-          speak("I'm listening. You can navigate by voice or use keyboard shortcuts.");
         }
       }
-      
+
       // Escape to stop listening
       if (event.code === 'Escape') {
         if (isListening) {
           stopListening();
         }
       }
-      
+
       // Number keys for quick navigation (when not in learning mode)
       if (location.pathname === '/dashboard' && !isListening) {
         switch (event.code) {
@@ -63,7 +62,6 @@ const ButtonlessNavigation: React.FC<{ children: React.ReactNode }> = ({ childre
           stopListening();
         } else {
           startListening();
-          speak("I'm listening. You can navigate by voice or use keyboard shortcuts.");
         }
       }
     };

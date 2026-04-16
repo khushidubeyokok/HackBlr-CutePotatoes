@@ -1,0 +1,18 @@
+{
+    "name": "drishti-vani-server",
+    "version": "1.0.0",
+    "description": "Backend for Drishti-Vani NCERT Tutor",
+    "main": "index.js",
+    "scripts": {
+        "start": "node index.js",
+        "ingest": "node scripts/ingest.js"
+    },
+    "dependencies": {
+        "@qdrant/js-client-rest": "^1.7.0",
+        "cors": "^2.8.5",
+        "dotenv": "^16.3.1",
+        "express": "^4.18.2",
+        "groq-sdk": "^1.1.2",
+        "node-fetch": "^2.7.0"
+    }
+}

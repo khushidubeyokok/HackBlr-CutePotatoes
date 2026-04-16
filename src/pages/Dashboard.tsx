@@ -1,9 +1,9 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useVoice } from '../contexts/VoiceContext';
 import { useUser } from '../contexts/UserContext';
-import { 
-  Mic, MicOff, Volume2, BookOpen, MessageCircle, BarChart3, 
+import {
+  Mic, MicOff, Volume2, BookOpen, MessageCircle, BarChart3,
   Eye, Microscope, Calculator, Globe, Book, Languages,
   Play, ArrowRight, Clock, Star
 } from 'lucide-react';
@@ -12,9 +12,10 @@ const Dashboard: React.FC = () => {
   const navigate = useNavigate();
   const { isListening, isSpeaking, transcript, startListening, stopListening, speak, clearTranscript } = useVoice();
   const { user, getLastSession, logout, updateUser } = useUser();
-  
+
   const [isVoiceMode, setIsVoiceMode] = useState(false);
   const [currentAction, setCurrentAction] = useState<'none' | 'continue' | 'question' | 'subject'>('none');
+  const lastProcessedTranscriptRef = useRef<string>('');
 
   const subjectIcons = {
     'Science': Microscope,
@@ -68,12 +69,16 @@ const Dashboard: React.FC = () => {
   }, [user, updateUser]);
 
   useEffect(() => {
-    if (transcript && isVoiceMode) {
-      processVoiceCommand(transcript.toLowerCase());
+    if (transcript && isVoiceMode && !isSpeaking) {
+      const cleaned = transcript.toLowerCase().trim();
+      if (cleaned && cleaned !== lastProcessedTranscriptRef.current) {
+        lastProcessedTranscriptRef.current = cleaned;
+        processVoiceCommand(cleaned);
+      }
     }
-  }, [transcript, isVoiceMode]);
+  }, [transcript, isVoiceMode, isSpeaking]);
 
-  const processVoiceCommand = (command: string) => {
+  const processVoiceCommand = async (command: string) => {
     // Normalize common intents like "I want to read science"
     const wantsToRead = /\b(i\s+want\s+to\s+read|open|start|learn|study)\b/;
     const goTo = /\b(go\s+to|navigate\s+to)\b/;
@@ -132,6 +137,19 @@ const Dashboard: React.FC = () => {
       navigate('/learning/Hindi/Chapter-1');
     } else if (command.includes('help')) {
       speak("You can say 'continue learning' to resume your last session, 'ask a question' for doubts, or mention a subject name to start learning.");
+    } else {
+      // Ambient Q&A fallback
+      try {
+        const response = await fetch('http://localhost:3001/api/ask', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ question: command, subject: '', chapter: '' })
+        });
+        const data = await response.json();
+        speak(data.answer);
+      } catch (error) {
+        console.error('Dashboard RAG error:', error);
+      }
     }
   };
 
@@ -148,14 +166,14 @@ const Dashboard: React.FC = () => {
 
   const getSubjectProgress = (subject: string) => {
     if (!user?.progress[subject]) return 0;
-    
+
     const chapters = Object.keys(user.progress[subject]);
     if (chapters.length === 0) return 0;
-    
+
     const totalProgress = chapters.reduce((sum, chapter) => {
       return sum + (user.progress[subject][chapter]?.progress || 0);
     }, 0);
-    
+
     return Math.round(totalProgress / chapters.length);
   };
 
@@ -168,7 +186,7 @@ const Dashboard: React.FC = () => {
       'English': ['Chapter-1', 'Chapter-2', 'Chapter-3', 'Chapter-4', 'Chapter-5'],
       'Hindi': ['Chapter-1', 'Chapter-2', 'Chapter-3', 'Chapter-4', 'Chapter-5'],
     };
-    
+
     return chapterMap[subject] || [];
   };
 
@@ -200,14 +218,14 @@ const Dashboard: React.FC = () => {
                 </div>
               </div>
             </div>
-            
+
             <div className="flex items-center gap-4">
               <div className="flex items-center gap-2 bg-primary-50 px-3 py-1 rounded-full">
                 <span className="text-primary-700 font-medium">{user.name}</span>
                 <span className="text-primary-600">•</span>
                 <span className="text-primary-600">Class {user.class}</span>
               </div>
-              
+
               <button
                 onClick={() => navigate('/progress')}
                 className="flex items-center gap-2 text-gray-600 hover:text-primary-600 transition-colors"
@@ -226,14 +244,13 @@ const Dashboard: React.FC = () => {
                 <MicOff className="w-5 h-5 rotate-90" />
                 <span className="hidden sm:inline">Logout</span>
               </button>
-              
+
               <button
                 onClick={handleVoiceToggle}
-                className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-colors ${
-                  isListening 
-                    ? 'bg-red-500 text-white' 
-                    : 'bg-primary-500 text-white hover:bg-primary-600'
-                }`}
+                className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-colors ${isListening
+                  ? 'bg-red-500 text-white'
+                  : 'bg-primary-500 text-white hover:bg-primary-600'
+                  }`}
               >
                 {isListening ? <MicOff className="w-5 h-5" /> : <Mic className="w-5 h-5" />}
                 <span className="hidden sm:inline">
@@ -257,7 +274,7 @@ const Dashboard: React.FC = () => {
           <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 max-w-2xl mx-auto">
             <p className="text-blue-800 font-medium mb-2">🎤 Buttonless Navigation</p>
             <p className="text-blue-700 text-sm">
-              Press <kbd className="bg-blue-100 px-2 py-1 rounded">Space</kbd> or <kbd className="bg-blue-100 px-2 py-1 rounded">Enter</kbd> to start voice navigation, 
+              Press <kbd className="bg-blue-100 px-2 py-1 rounded">Space</kbd> or <kbd className="bg-blue-100 px-2 py-1 rounded">Enter</kbd> to start voice navigation,
               or click anywhere on the page. Use <kbd className="bg-blue-100 px-2 py-1 rounded">1-4</kbd> for quick subject access.
             </p>
           </div>
@@ -284,7 +301,7 @@ const Dashboard: React.FC = () => {
                 )}
               </div>
             </div>
-            
+
             <button
               onClick={() => {
                 if (lastSession) {
@@ -313,11 +330,10 @@ const Dashboard: React.FC = () => {
                 </p>
               </div>
             </div>
-            
+
             <button
               onClick={() => {
-                setCurrentAction('question');
-                speak("What would you like to know? I'm here to help with any doubts you have.");
+                startListening();
               }}
               className="btn-secondary w-full flex items-center justify-center gap-2"
             >
@@ -332,13 +348,13 @@ const Dashboard: React.FC = () => {
           <h3 className="text-2xl font-bold text-gray-900 text-center mb-8">
             Choose a Subject to Explore
           </h3>
-          
+
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-6">
             {user.subjects.map((subject) => {
               const IconComponent = subjectIcons[subject as keyof typeof subjectIcons] || BookOpen;
               const progress = getSubjectProgress(subject);
               const chapters = getSubjectChapters(subject);
-              
+
               return (
                 <div
                   key={subject}
@@ -352,19 +368,19 @@ const Dashboard: React.FC = () => {
                     <div className="w-16 h-16 bg-primary-100 rounded-full flex items-center justify-center mx-auto mb-4 group-hover:bg-primary-200 transition-colors">
                       <IconComponent className="w-8 h-8 text-primary-600" />
                     </div>
-                    
+
                     <h4 className="text-lg font-semibold text-gray-900 mb-3">{subject}</h4>
-                    
+
                     <div className="mb-4">
                       <div className="progress-bar">
-                        <div 
+                        <div
                           className="progress-fill"
                           style={{ width: `${progress}%` }}
                         />
                       </div>
                       <p className="text-sm text-gray-600 mt-1">{progress}% Complete</p>
                     </div>
-                    
+
                     <div className="flex items-center justify-center gap-1 text-primary-600 group-hover:text-primary-700">
                       <span className="text-sm font-medium">Start Learning</span>
                       <ArrowRight className="w-4 h-4" />
@@ -383,13 +399,13 @@ const Dashboard: React.FC = () => {
             <div className="space-y-4">
               {Object.entries(user.progress).slice(0, 3).map(([subject, chapters]) => {
                 const recentChapter = Object.entries(chapters)
-                  .sort(([,a], [,b]) => new Date(b.lastAccessed).getTime() - new Date(a.lastAccessed).getTime())[0];
-                
+                  .sort(([, a], [, b]) => new Date(b.lastAccessed).getTime() - new Date(a.lastAccessed).getTime())[0];
+
                 if (!recentChapter) return null;
-                
+
                 const [chapterName, chapterData] = recentChapter;
                 const IconComponent = subjectIcons[subject as keyof typeof subjectIcons] || BookOpen;
-                
+
                 return (
                   <div key={`${subject}-${chapterName}`} className="flex items-center gap-4 p-4 bg-gray-50 rounded-lg">
                     <div className="w-10 h-10 bg-primary-100 rounded-lg flex items-center justify-center">
